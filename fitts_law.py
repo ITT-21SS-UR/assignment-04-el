@@ -109,7 +109,7 @@ class FittsLawModel:
         for coord in self.target_coords:
             distance = math.sqrt((x - coord[0]) ** 2 + (y - coord[1]) ** 2)
 
-            if distance <= self.circle_width:
+            if distance <= self.circle_width / 2:
                 return True
 
         return False
