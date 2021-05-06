@@ -16,9 +16,11 @@ import pandas as pd
 
 DistanceToTarget = collections.namedtuple('DistanceToTarget', ['target', 'distance_x', 'distance_y', 'total_distance'])
 
+
 class ApplicationState(Enum):
     EXPLANATION = 1
     EXPERIMENT = 2
+
 
 class MyCircle:
     def __init__(self, model, center, is_target):
@@ -94,7 +96,8 @@ class FittsLawModel:
                     break
 
             circle.set_is_target(True)
-            self.target_coords.append(circle.center)
+            self.target_coords\
+                .append((circle.center[0] + self.circle_width / 2, circle.center[1] + self.circle_width / 2))
 
     def refresh(self):
         self.circle_coords.clear()
@@ -240,7 +243,7 @@ class FittsLawWithHelper(FittsLawExperiment):
         #     QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(ev.pos().x() - (distance_to_target.distance_x / 10),
         #                                                         ev.pos().x() - (distance_to_target.distance_x / 10))))
 
-        if distance_to_target.total_distance < self.model.circle_width + 50:
+        if distance_to_target.total_distance < self.model.circle_width + 50:  # TODO replace "50" with config value
             QtGui.QCursor.setPos(self.mapToGlobal(
                 QtCore.QPoint(ev.pos().x() + (distance_to_target.distance_x / 10) + 0.5,
                               ev.pos().y() + (distance_to_target.distance_y / 10) + 0.5)))
