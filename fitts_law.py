@@ -13,6 +13,10 @@ from datetime import datetime
 import pandas as pd
 
 
+class ApplicationState(Enum):
+    EXPLANATION = 1
+    EXPERIMENT = 2
+
 class MyCircle:
     def __init__(self, model, center, is_target):
         self.model = model
@@ -134,6 +138,8 @@ class FittsLawExperiment(QtWidgets.QWidget):
 
     def __init__(self, model):
         super().__init__()
+        self.application_state = ApplicationState.EXPLANATION
+        self.ui = uic.loadUi("fitts_law_ui.ui", self)
         self.model = model
         self.circles_drawn = False
         self.start_pos = (int(self.model.screen_width / 2), int(self.model.screen_height / 2))
@@ -147,9 +153,20 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.resize(self.model.screen_width, self.model.screen_height)
         QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(self.start_pos[0], self.start_pos[1])))
         self.setMouseTracking(True)
+        self.show_explanation()
         self.show()
 
+    def show_explanation(self):
+        self.ui.hintText.mousePressEvent = self.mousePressEvent
+        self.ui.hintText.setAlignment(QtCore.Qt.AlignCenter)
+        self.ui.hintText.setVisible(True)
+        self.ui.hintText.setText("Get ready to move your mouse and click the red circle!\n\n\n"
+                                 "Left Click when you are ready to start!")
+
     def paintEvent(self, event):
+        if self.application_state == ApplicationState.EXPLANATION:
+            return
+
         painter = QtGui.QPainter(self)
         painter.setPen(Qt.QPen(QtCore.Qt.black, 3, QtCore.Qt.SolidLine))
 
@@ -166,6 +183,12 @@ class FittsLawExperiment(QtWidgets.QWidget):
         pass
 
     def mousePressEvent(self, ev):
+        if self.application_state == ApplicationState.EXPLANATION:
+            self.application_state = ApplicationState.EXPERIMENT
+            self.ui.hintText.setVisible(False)
+            self.ui.hintText.setEnabled(False)
+            return
+
         if ev.button() == QtCore.Qt.LeftButton:
             self.current_click_counter += 1
             hit = self.model.handle_click(ev.x(), ev.y())
@@ -186,6 +209,9 @@ class FittsLawExperiment(QtWidgets.QWidget):
             self.close()
 
     def mouseMoveEvent(self, ev):
+        if self.application_state == ApplicationState.EXPLANATION:
+            return
+
         if (abs(ev.x() - self.start_pos[0]) > 5) or (abs(ev.y() - self.start_pos[1]) > 5):
             self.model.start_timer()
             self.update()
