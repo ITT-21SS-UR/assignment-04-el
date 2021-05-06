@@ -14,6 +14,8 @@ from datetime import datetime
 import pandas as pd
 
 
+DistanceToTarget = collections.namedtuple('DistanceToTarget', ['target', 'distance_x', 'distance_y', 'total_distance'])
+
 class ApplicationState(Enum):
     EXPLANATION = 1
     EXPERIMENT = 2
@@ -96,6 +98,7 @@ class FittsLawModel:
 
     def refresh(self):
         self.circle_coords.clear()
+        self.target_coords.clear()
         self.circles.clear()
         self.init_circles()
 
@@ -105,10 +108,6 @@ class FittsLawModel:
 
             if distance <= self.circle_width:
                 return True
-
-            # if coord[0] - self.circle_width < x < coord[0] + self.circle_width:
-            #     if coord[1] - self.circle_width < y < coord[1] + self.circle_width:
-            #         return True
 
         return False
 
@@ -227,10 +226,50 @@ class FittsLawExperiment(QtWidgets.QWidget):
             self.update()
 
 
+class FittsLawWithHelper(FittsLawExperiment):
+
+    def __init__(self, model):
+        super().__init__(model)
+
+    def mouseMoveEvent(self, ev):
+        super().mouseMoveEvent(ev)
+        distance_to_target = self.get_nearest_target(ev)
+
+        # anti-solution
+        # if distance_to_target.total_distance < self.model.circle_width + 50:
+        #     QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(ev.pos().x() - (distance_to_target.distance_x / 10),
+        #                                                         ev.pos().x() - (distance_to_target.distance_x / 10))))
+
+        if distance_to_target.total_distance < self.model.circle_width + 50:
+            QtGui.QCursor.setPos(self.mapToGlobal(
+                QtCore.QPoint(ev.pos().x() + (distance_to_target.distance_x / 10) + 0.5,
+                              ev.pos().y() + (distance_to_target.distance_y / 10) + 0.5)))
+
+
+    def get_nearest_target(self, ev):
+        nearest_target = None
+        nearest_target_distance = 0
+        for coord in self.model.target_coords:
+            distance = abs((coord[0] - ev.x()) + (coord[1] - ev.y()))
+
+            if nearest_target is None:
+                nearest_target = coord
+                nearest_target_distance = distance
+            else:
+                if distance < nearest_target_distance:
+                    nearest_target = coord
+                    nearest_target_distance = distance
+
+            return DistanceToTarget(nearest_target, coord[0] - ev.x(), coord[1] - ev.y(), nearest_target_distance)
+
+
 def main():
     app = QtWidgets.QApplication(sys.argv)
     model = FittsLawModel()
-    experiment = FittsLawExperiment(model)
+    if model.helper_enabled:
+        experiment = FittsLawWithHelper(model)
+    else:
+        experiment = FittsLawExperiment(model)
     sys.exit(app.exec_())
 
 

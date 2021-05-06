@@ -1,8 +1,8 @@
 {
   "experiment": {
-    "circleWidth": 10,
+    "circleWidth": 12,
     "numberCircles": 6000,
-    "helperEnabled": false,
+    "helperEnabled": true,
     "backgroundDistractionEnabled": false,
     "numberValidTargets": 1,
     "screenWidth": 1280,
