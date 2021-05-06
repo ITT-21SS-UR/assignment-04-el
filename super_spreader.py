@@ -8,7 +8,7 @@ instead of printing a plot.
 """
 
 
-def spread(num_circles, screen_width, screen_height, circle_width):
+def spread(num_circles, screen_width, screen_height, circle_width, distance_between_circles):
     import numpy as np
     import matplotlib.pyplot as plt
 
@@ -16,11 +16,8 @@ def spread(num_circles, screen_width, screen_height, circle_width):
     # sample point
     k = 30
 
-    # Minimum distance between samples
-    r = circle_width
-
     # Cell side length
-    a = r / np.sqrt(2)
+    a = distance_between_circles / np.sqrt(2)
     # Number of cells in the x- and y-directions of the grid
     nx, ny = int(screen_width / a) + 1, int(screen_height / a) + 1
 
@@ -80,7 +77,7 @@ def spread(num_circles, screen_width, screen_height, circle_width):
             nearby_pt = samples[idx]
             # Squared distance between or candidate point, pt, and this nearby_pt.
             distance2 = (nearby_pt[0] - pt[0]) ** 2 + (nearby_pt[1] - pt[1]) ** 2
-            if distance2 < r ** 2:
+            if distance2 < distance_between_circles ** 2:
                 # The points are too close, so pt is not a candidate.
                 return False
         # All points tested: if we're here, pt is valid
@@ -97,7 +94,7 @@ def spread(num_circles, screen_width, screen_height, circle_width):
         """
         i = 0
         while i < k:
-            rho, theta = np.random.uniform(r, 2 * r), np.random.uniform(0, 2 * np.pi)
+            rho, theta = np.random.uniform(distance_between_circles, 2 * distance_between_circles), np.random.uniform(0, 2 * np.pi)
             pt = refpt[0] + rho * np.cos(theta), refpt[1] + rho * np.sin(theta)
             if not (0 <= pt[0] < screen_width and 0 <= pt[1] < screen_height):
                 # This point falls outside the domain, so try again.

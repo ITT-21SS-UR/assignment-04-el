@@ -1,12 +1,13 @@
 {
   "experiment": {
-    "circleWidth": 40,
-    "numberCircles": 400,
+    "circleWidth": 10,
+    "numberCircles": 6000,
     "helperEnabled": false,
     "backgroundDistractionEnabled": false,
     "numberValidTargets": 1,
     "screenWidth": 1280,
     "screenHeight": 720,
-    "repetitions": 5
+    "repetitions": 5,
+    "distanceBetweenCircles": 50
   }
 }

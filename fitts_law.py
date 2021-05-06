@@ -4,6 +4,7 @@ import sys
 import json
 import time
 import collections
+import math
 
 from PyQt5 import QtWidgets
 from super_spreader import spread
@@ -65,6 +66,7 @@ class FittsLawModel:
             self.screen_width = data['screenWidth']
             self.screen_height = data['screenHeight']
             self.max_repetitions = data['repetitions']
+            self.distance_between_circles = data['distanceBetweenCircles']
 
     def init_circles(self):
         self.init_circle_coords()
@@ -72,7 +74,8 @@ class FittsLawModel:
 
     def init_circle_coords(self):
         self.circle_coords = spread(self.num_circles, self.screen_width - self.circle_width,
-                                    self.screen_height - self.circle_width, self.circle_width)
+                                    self.screen_height - self.circle_width, self.circle_width,
+                                    self.distance_between_circles)
 
     def init_circle_list(self):
         for center in self.circle_coords:
@@ -98,9 +101,14 @@ class FittsLawModel:
 
     def handle_click(self, x, y):
         for coord in self.target_coords:
-            if coord[0] - self.circle_width < x < coord[0] + self.circle_width:
-                if coord[1] - self.circle_width < y < coord[1] + self.circle_width:
-                    return True
+            distance = math.sqrt((x - coord[0]) ** 2 + (y - coord[1]) ** 2)
+
+            if distance <= self.circle_width:
+                return True
+
+            # if coord[0] - self.circle_width < x < coord[0] + self.circle_width:
+            #     if coord[1] - self.circle_width < y < coord[1] + self.circle_width:
+            #         return True
 
         return False
 
@@ -146,12 +154,12 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.init_ui()
         self.current_click_counter = 0
         self.current_repetition = 1
+        self.setCursor(QtCore.Qt.ArrowCursor)
 
     def init_ui(self):
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.setStyleSheet(self.DEFAULT_STYLE)
         self.resize(self.model.screen_width, self.model.screen_height)
-        QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(self.start_pos[0], self.start_pos[1])))
         self.setMouseTracking(True)
         self.show_explanation()
         self.show()
@@ -160,6 +168,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.ui.hintText.mousePressEvent = self.mousePressEvent
         self.ui.hintText.setAlignment(QtCore.Qt.AlignCenter)
         self.ui.hintText.setVisible(True)
+        self.ui.hintText.viewport().setCursor(QtCore.Qt.ArrowCursor)
         self.ui.hintText.setText("Get ready to move your mouse and click the red circle!\n\n\n"
                                  "Left Click when you are ready to start!")
 
@@ -168,7 +177,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
             return
 
         painter = QtGui.QPainter(self)
-        painter.setPen(Qt.QPen(QtCore.Qt.black, 3, QtCore.Qt.SolidLine))
+        painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
 
         for circle in self.model.circles:
             if circle.is_target:
@@ -187,6 +196,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
             self.application_state = ApplicationState.EXPERIMENT
             self.ui.hintText.setVisible(False)
             self.ui.hintText.setEnabled(False)
+            QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(self.start_pos[0], self.start_pos[1])))
             return
 
         if ev.button() == QtCore.Qt.LeftButton:
