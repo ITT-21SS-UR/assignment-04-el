@@ -12,9 +12,19 @@ from enum import Enum
 from PyQt5 import uic, Qt, QtCore, QtGui
 from datetime import datetime
 import pandas as pd
+from pointing_technique import CursorHelper
 
 
-DistanceToTarget = collections.namedtuple('DistanceToTarget', ['target', 'distance_x', 'distance_y', 'total_distance'])
+LATIN_SQUARE_FULL = [[1, 3, 4, 2],
+                     [4, 1, 2, 3],
+                     [2, 4, 3, 1],
+                     [3, 2, 1, 4]]
+
+LATIN_SQUARE_SINGLE = [[1, 2],
+                     [2, 1]]
+
+TEST_TYPE_FULL = "full"
+TEST_TYPE_SINGLE = "single"
 
 
 class ApplicationState(Enum):
@@ -26,6 +36,8 @@ class ApplicationState(Enum):
 class Condition(Enum):
     Circle = 1
     Square = 2
+    CircleHelper = 3
+    SquareHelper = 4
 
 
 class MyShape:
@@ -41,8 +53,8 @@ class MyShape:
 
 
 class FittsLawModel:
-    CSV_HEADER = ['user_id', 'timestamp', 'condition', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y', 'target_width',
-                  'num_circles', 'screen_width', 'screen_height', 'helper_enabled']
+    CSV_HEADER = ['user_id', 'timestamp', 'condition', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y',
+                  'target_width', 'num_circles', 'screen_width', 'screen_height', 'helper_enabled']
 
     user_id = 0
     shape_width = 0
@@ -57,19 +69,21 @@ class FittsLawModel:
     target_coords = []
     max_repetitions = 0                             # repetitions per condition
     distance_between_shapes = 0
+    test_type = ""
 
     def __init__(self):
+        self.helper = ()
         self.parse_setup(sys.argv[1])
         self.init_shapes()
         self.init_shape_coords()
         self.timer = QtCore.QTime()
         self.mouse_moving = False
         self.current_participant_repetitions = 1    # counts how many conditions the participant has already completed
-        self.latin_square = [[1, 2],
-                             [2, 1]]
+        self.latin_square = LATIN_SQUARE_FULL if self.test_type == TEST_TYPE_FULL else LATIN_SQUARE_SINGLE
         self.current_latin_square_row = self.calculate_row_for_id()
         self.current_condition_index = 0
         self.current_condition = self.latin_square[self.current_latin_square_row][self.current_condition_index]
+        self.set_helper()
         self.df = pd.DataFrame(columns=self.CSV_HEADER)
 
     def parse_setup(self, filename):
@@ -86,6 +100,7 @@ class FittsLawModel:
             self.screen_height = data['screenHeight']
             self.max_repetitions = data['repetitions']
             self.distance_between_shapes = data['distanceBetweenShapes']
+            self.test_type = data['testType']
 
     def calculate_row_for_id(self):
         """
@@ -103,6 +118,7 @@ class FittsLawModel:
     def init_shapes(self):
         self.init_shape_coords()
         self.init_shape_list()
+        self.helper = CursorHelper(self.target_coords, self.shape_width)
 
     def init_shape_coords(self):
         self.shape_coords = spread(self.num_circles, self.screen_width - self.shape_width,
@@ -135,6 +151,23 @@ class FittsLawModel:
     def get_next_condition(self):
         self.current_condition_index += 1
         self.current_condition = self.latin_square[self.current_latin_square_row][self.current_condition_index]
+        self.set_helper()
+
+    def set_helper(self):
+        """
+        This function can be used to add / remove the helper depending on Condition.
+        Only enabled for test type "full", e.g. an experiment that includes tests with both enabled and disabled helper
+        for the same participant
+        """
+        if self.test_type == TEST_TYPE_SINGLE:
+            return
+
+        if Condition(self.current_condition) == Condition.CircleHelper \
+                or Condition(self.current_condition) == Condition.SquareHelper:
+            self.helper_enabled = True
+
+        else:
+            self.helper_enabled = False
 
     def refresh(self):
         """ Refreshes the displayed shapes, by clearing the arrays and initializing new, random shapes """
@@ -150,6 +183,7 @@ class FittsLawModel:
         self.current_condition_index = 0
         self.current_condition = self.latin_square[self.current_latin_square_row][self.current_condition_index]
         self.current_participant_repetitions = 1
+        self.set_helper()
 
     def handle_click(self, x, y):
         """
@@ -157,13 +191,15 @@ class FittsLawModel:
         Returns True on hit.
         """
         for coord in self.target_coords:
-            if Condition(self.current_condition) == Condition.Circle:
+            if Condition(self.current_condition) == Condition.Circle or \
+                    Condition(self.current_condition) == Condition.CircleHelper:
                 distance = math.sqrt((x - coord[0]) ** 2 + (y - coord[1]) ** 2)
 
                 if distance <= self.shape_width / 2:
                     return True
 
-            elif Condition(self.current_condition) == Condition.Square:
+            elif Condition(self.current_condition) == Condition.Square or \
+                    Condition(self.current_condition) == Condition.SquareHelper:
                 # we adjusted the target coordinates to be at the center of the shape
                 # in case of the 'square' target we need to adjust these values back to the top-left corner
                 rect_x = coord[0] - self.shape_width / 2
@@ -255,16 +291,19 @@ class FittsLawExperiment(QtWidgets.QWidget):
                 painter.setBrush(Qt.QBrush(QtCore.Qt.gray))
 
             # draw different shapes based on condition
-            if Condition(self.model.current_condition) == Condition.Circle:
+            if Condition(self.model.current_condition) == Condition.Circle or \
+                    Condition(self.model.current_condition) == Condition.CircleHelper:
                 painter.drawEllipse(int(shape.x_coord), int(shape.y_coord),
                                     int(self.model.shape_width), int(self.model.shape_width))
 
-            elif Condition(self.model.current_condition) == Condition.Square:
+            elif Condition(self.model.current_condition) == Condition.Square or \
+                    Condition(self.model.current_condition) == Condition.SquareHelper:
                 painter.drawRect(int(shape.x_coord), int(shape.y_coord),
                                  int(self.model.shape_width), int(self.model.shape_width))
 
     def keyPressEvent(self, ev):
-        pass
+        if ev.key() == QtCore.Qt.Key_H and ev.modifiers() & QtCore.Qt.ControlModifier:
+            self.model.helper_enabled = not self.model.helper_enabled
 
     def mousePressEvent(self, ev):
         if self.application_state == ApplicationState.EXPLANATION:
@@ -295,7 +334,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
 
         # trigger the next condition, or finish the experiment if all conditions are completed
         if self.current_repetition > self.model.max_repetitions:
-            if self.model.current_participant_repetitions >= len(Condition):
+            if self.model.current_participant_repetitions >= len(self.model.latin_square):
                 self.application_state = ApplicationState.FINISHED
                 self.reset_experiment()
             else:
@@ -316,58 +355,22 @@ class FittsLawExperiment(QtWidgets.QWidget):
             self.model.start_timer()
             self.update()
 
+        if self.model.helper_enabled:
+            new_coords = self.model.helper.filter(ev)
+
+            if new_coords is not None:
+                QtGui.QCursor.setPos(self.mapToGlobal(self.model.helper.filter(ev)))
+
     def closeEvent(self, event):
         # print the logged data to stdout before closing
         self.model.print_log_to_stdout()
         event.accept()
 
 
-class FittsLawWithHelper(FittsLawExperiment):
-
-    def __init__(self, model):
-        super().__init__(model)
-
-    def mouseMoveEvent(self, ev):
-        if self.application_state == ApplicationState.EXPLANATION or \
-                self.application_state == ApplicationState.FINISHED:
-            return
-
-        super().mouseMoveEvent(ev)
-        distance_to_target = self.get_nearest_target_distance(ev)
-
-        if distance_to_target.total_distance < self.model.shape_width + 50:  # TODO replace "50" with config value
-            QtGui.QCursor.setPos(self.mapToGlobal(
-                QtCore.QPoint(ev.pos().x() + (distance_to_target.distance_x / 10) + 0.5,
-                              ev.pos().y() + (distance_to_target.distance_y / 10) + 0.5)))
-
-    def get_nearest_target_distance(self, ev):
-        """
-        Gets the distance to the nearest valid target. Is designed to support multiple targets, and returns
-        the distance to the nearest one.
-        """
-        nearest_target = None
-        nearest_target_distance = 0
-        for coord in self.model.target_coords:
-            distance = abs((coord[0] - ev.x()) + (coord[1] - ev.y()))
-
-            if nearest_target is None:
-                nearest_target = coord
-                nearest_target_distance = distance
-            else:
-                if distance < nearest_target_distance:
-                    nearest_target = coord
-                    nearest_target_distance = distance
-
-            return DistanceToTarget(nearest_target, coord[0] - ev.x(), coord[1] - ev.y(), nearest_target_distance)
-
-
 def main():
     app = QtWidgets.QApplication(sys.argv)
     model = FittsLawModel()
-    if model.helper_enabled:
-        experiment = FittsLawWithHelper(model)
-    else:
-        experiment = FittsLawExperiment(model)
+    experiment = FittsLawExperiment(model)
     sys.exit(app.exec_())
 
 
