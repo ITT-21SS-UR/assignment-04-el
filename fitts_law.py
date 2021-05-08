@@ -28,7 +28,7 @@ class Condition(Enum):
     Square = 2
 
 
-class MyCircle:
+class MyShape:
     def __init__(self, model, center, is_target):
         self.model = model
         self.is_target = is_target
@@ -88,6 +88,10 @@ class FittsLawModel:
             self.distance_between_shapes = data['distanceBetweenShapes']
 
     def calculate_row_for_id(self):
+        """
+        Calculates which row of the Latin Square to use for a given user ID
+        :return: the **index** of the Latin Square row that should be used
+        """
         if self.user_id <= len(self.latin_square):
             return self.user_id - 1
 
@@ -106,16 +110,22 @@ class FittsLawModel:
                                    self.distance_between_shapes)
 
     def init_shape_list(self):
+        """
+        Initializes the list of shapes
+        Then sets a defined number of shapes as valid target.
+        The targets are chosen randomly and the operation may time out if the script is unable to find enough
+        valid shapes (this means that less targets than specified will be set)
+        """
         for center in self.shape_coords:
-            self.shapes.append(MyCircle(self, center, False))
+            self.shapes.append(MyShape(self, center, False))
 
         for x in range(self.num_targets):
             unique_timeout = 0
             shape = random.choice(self.shapes)
-            while shape.is_target:
+            while shape.is_target:                      # try to randomly find a shape that is not yet set as target
                 unique_timeout += 1
                 shape = random.choice(self.shapes)
-                if unique_timeout > 1000:
+                if unique_timeout > 1000:               # stop randomly picking shapes after a certain amount of tries
                     break
 
             shape.set_is_target(True)
@@ -124,24 +134,17 @@ class FittsLawModel:
 
     def get_next_condition(self):
         self.current_condition_index += 1
-        row = self.current_latin_square_row
-        index = self.current_condition_index
-
-        if row >= len(self.latin_square):
-            row = 0
-
-        if index >= len(self.latin_square[0]):
-            index = 0
-
-        self.current_condition = self.latin_square[row][index]
+        self.current_condition = self.latin_square[self.current_latin_square_row][self.current_condition_index]
 
     def refresh(self):
+        """ Refreshes the displayed shapes, by clearing the arrays and initializing new, random shapes """
         self.shape_coords.clear()
         self.target_coords.clear()
         self.shapes.clear()
         self.init_shapes()
 
     def refresh_participant(self):
+        """ Resets all values concerning the participant """
         self.user_id += 1
         self.current_latin_square_row = self.calculate_row_for_id()
         self.current_condition_index = 0
@@ -149,6 +152,10 @@ class FittsLawModel:
         self.current_participant_repetitions = 1
 
     def handle_click(self, x, y):
+        """
+        Checks if a mouse click hit a valid target.
+        Returns True on hit.
+        """
         for coord in self.target_coords:
             if Condition(self.current_condition) == Condition.Circle:
                 distance = math.sqrt((x - coord[0]) ** 2 + (y - coord[1]) ** 2)
@@ -195,7 +202,7 @@ class FittsLawModel:
         }, ignore_index=True)
 
     def print_log_to_stdout(self):
-        self.df.to_csv(sys.stdout, index=False, header=(self.user_id == 1))  # print header only for first user
+        self.df.to_csv(sys.stdout, index=False)
 
 
 class FittsLawExperiment(QtWidgets.QWidget):
@@ -242,11 +249,12 @@ class FittsLawExperiment(QtWidgets.QWidget):
         painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
 
         for shape in self.model.shapes:
-            if shape.is_target:
+            if shape.is_target:  # targets should be filled with a red color
                 painter.setBrush(Qt.QBrush(QtCore.Qt.red, QtCore.Qt.SolidPattern))
             else:
                 painter.setBrush(Qt.QBrush(QtCore.Qt.gray))
 
+            # draw different shapes based on condition
             if Condition(self.model.current_condition) == Condition.Circle:
                 painter.drawEllipse(int(shape.x_coord), int(shape.y_coord),
                                     int(self.model.shape_width), int(self.model.shape_width))
@@ -285,9 +293,9 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.current_click_counter = 0
         self.current_repetition += 1
 
+        # trigger the next condition, or finish the experiment if all conditions are completed
         if self.current_repetition > self.model.max_repetitions:
             if self.model.current_participant_repetitions >= len(Condition):
-                self.model.print_log_to_stdout()
                 self.application_state = ApplicationState.FINISHED
                 self.reset_experiment()
             else:
@@ -300,12 +308,18 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.model.refresh_participant()
 
     def mouseMoveEvent(self, ev):
-        if self.application_state == ApplicationState.EXPLANATION:
+        if self.application_state == ApplicationState.EXPLANATION or \
+                self.application_state == ApplicationState.FINISHED:
             return
 
         if (abs(ev.x() - self.start_pos[0]) > 5) or (abs(ev.y() - self.start_pos[1]) > 5):
             self.model.start_timer()
             self.update()
+
+    def closeEvent(self, event):
+        # print the logged data to stdout before closing
+        self.model.print_log_to_stdout()
+        event.accept()
 
 
 class FittsLawWithHelper(FittsLawExperiment):
@@ -314,15 +328,23 @@ class FittsLawWithHelper(FittsLawExperiment):
         super().__init__(model)
 
     def mouseMoveEvent(self, ev):
+        if self.application_state == ApplicationState.EXPLANATION or \
+                self.application_state == ApplicationState.FINISHED:
+            return
+
         super().mouseMoveEvent(ev)
-        distance_to_target = self.get_nearest_target(ev)
+        distance_to_target = self.get_nearest_target_distance(ev)
 
         if distance_to_target.total_distance < self.model.shape_width + 50:  # TODO replace "50" with config value
             QtGui.QCursor.setPos(self.mapToGlobal(
                 QtCore.QPoint(ev.pos().x() + (distance_to_target.distance_x / 10) + 0.5,
                               ev.pos().y() + (distance_to_target.distance_y / 10) + 0.5)))
 
-    def get_nearest_target(self, ev):
+    def get_nearest_target_distance(self, ev):
+        """
+        Gets the distance to the nearest valid target. Is designed to support multiple targets, and returns
+        the distance to the nearest one.
+        """
         nearest_target = None
         nearest_target_distance = 0
         for coord in self.model.target_coords:
