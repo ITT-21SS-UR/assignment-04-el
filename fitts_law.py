@@ -20,6 +20,7 @@ DistanceToTarget = collections.namedtuple('DistanceToTarget', ['target', 'distan
 class ApplicationState(Enum):
     EXPLANATION = 1
     EXPERIMENT = 2
+    FINISHED = 3
 
 
 class MyCircle:
@@ -35,9 +36,10 @@ class MyCircle:
 
 
 class FittsLawModel:
-    CSV_HEADER = ['timestamp', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y', 'target_width', 'num_circles',
-                  'screen_width', 'screen_height', 'helper_enabled']
+    CSV_HEADER = ['user_id', 'timestamp', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y', 'target_width',
+                  'num_circles', 'screen_width', 'screen_height', 'helper_enabled']
 
+    user_id = 0
     circle_width = 0
     num_circles = 0
     helper_enabled = False
@@ -49,6 +51,7 @@ class FittsLawModel:
     circles = []
     target_coords = []
     max_repetitions = 0
+    distance_between_circles = 0
 
     def __init__(self):
         self.parse_setup(sys.argv[1])
@@ -62,6 +65,7 @@ class FittsLawModel:
         with open(filename) as file:
             data = json.load(file)['experiment']
 
+            self.user_id = data['userId']
             self.circle_width = data['circleWidth']
             self.num_circles = data['numberCircles']
             self.helper_enabled = data['helperEnabled']
@@ -126,6 +130,7 @@ class FittsLawModel:
 
     def add_log_row(self, click_counter, time_taken, mouse_press_event):
         self.df = self.df.append({
+            'user_id': self.user_id,
             'timestamp': datetime.now(),
             'num_clicks': click_counter,
             'time_taken_in_ms': time_taken,
@@ -139,7 +144,7 @@ class FittsLawModel:
         }, ignore_index=True)
 
     def print_log_to_stdout(self):
-        self.df.to_csv(sys.stdout)
+        self.df.to_csv(sys.stdout, index=False, header=(self.user_id == 1))  # print header only for first user
 
 
 class FittsLawExperiment(QtWidgets.QWidget):
@@ -149,7 +154,6 @@ class FittsLawExperiment(QtWidgets.QWidget):
     def __init__(self, model):
         super().__init__()
         self.application_state = ApplicationState.EXPLANATION
-        self.ui = uic.loadUi("fitts_law_ui.ui", self)
         self.model = model
         self.circles_drawn = False
         self.start_pos = (int(self.model.screen_width / 2), int(self.model.screen_height / 2))
@@ -163,22 +167,27 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.setStyleSheet(self.DEFAULT_STYLE)
         self.resize(self.model.screen_width, self.model.screen_height)
         self.setMouseTracking(True)
-        self.show_explanation()
         self.show()
 
-    def show_explanation(self):
-        self.ui.hintText.mousePressEvent = self.mousePressEvent
-        self.ui.hintText.setAlignment(QtCore.Qt.AlignCenter)
-        self.ui.hintText.setVisible(True)
-        self.ui.hintText.viewport().setCursor(QtCore.Qt.ArrowCursor)
-        self.ui.hintText.setText("Get ready to move your mouse and click the red circle!\n\n\n"
-                                 "Left Click when you are ready to start!")
-
     def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+
         if self.application_state == ApplicationState.EXPLANATION:
+            painter.setPen(QtCore.Qt.black)
+            painter.setFont(Qt.QFont('Decorative', 36))
+            painter.drawText(event.rect(), QtCore.Qt.AlignCenter,
+                             "Get ready to move your mouse\nand click the red circle!\n\n\n"
+                             "Left Click when you are ready to start!")
             return
 
-        painter = QtGui.QPainter(self)
+        if self.application_state == ApplicationState.FINISHED:
+            painter.setPen(QtCore.Qt.black)
+            painter.setFont(Qt.QFont('Decorative', 36))
+            painter.drawText(event.rect(), QtCore.Qt.AlignCenter,
+                             "The experiment is finished!\nThank you for participating\n\n\n"
+                             "Click anywhere in the window to\ncontinue with the next participant.")
+            return
+
         painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
 
         for circle in self.model.circles:
@@ -196,9 +205,13 @@ class FittsLawExperiment(QtWidgets.QWidget):
     def mousePressEvent(self, ev):
         if self.application_state == ApplicationState.EXPLANATION:
             self.application_state = ApplicationState.EXPERIMENT
-            self.ui.hintText.setVisible(False)
-            self.ui.hintText.setEnabled(False)
             QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(self.start_pos[0], self.start_pos[1])))
+            self.repaint()
+            return
+
+        if self.application_state == ApplicationState.FINISHED:
+            self.application_state = ApplicationState.EXPLANATION
+            self.repaint()
             return
 
         if ev.button() == QtCore.Qt.LeftButton:
@@ -218,7 +231,12 @@ class FittsLawExperiment(QtWidgets.QWidget):
 
         if self.current_repetition > self.model.max_repetitions:
             self.model.print_log_to_stdout()
-            self.close()
+            self.application_state = ApplicationState.FINISHED
+            self.reset_experiment()
+
+    def reset_experiment(self):
+        self.model.user_id += 1
+        self.current_repetition = 0
 
     def mouseMoveEvent(self, ev):
         if self.application_state == ApplicationState.EXPLANATION:

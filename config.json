@@ -1,8 +1,9 @@
 {
   "experiment": {
+    "userId": 1,
     "circleWidth": 40,
     "numberCircles": 500,
-    "helperEnabled": true,
+    "helperEnabled": false,
     "backgroundDistractionEnabled": false,
     "numberValidTargets": 1,
     "screenWidth": 1280,
