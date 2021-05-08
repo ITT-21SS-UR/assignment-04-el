@@ -10,7 +10,6 @@ instead of printing a plot.
 
 def spread(num_circles, screen_width, screen_height, circle_width, distance_between_circles):
     import numpy as np
-    import matplotlib.pyplot as plt
 
     # Choose up to k points around each reference point as candidates for a new
     # sample point

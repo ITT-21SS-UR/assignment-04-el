@@ -23,6 +23,11 @@ class ApplicationState(Enum):
     FINISHED = 3
 
 
+class Condition(Enum):
+    Circle = 1
+    Square = 2
+
+
 class MyCircle:
     def __init__(self, model, center, is_target):
         self.model = model
@@ -36,29 +41,35 @@ class MyCircle:
 
 
 class FittsLawModel:
-    CSV_HEADER = ['user_id', 'timestamp', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y', 'target_width',
+    CSV_HEADER = ['user_id', 'timestamp', 'condition', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y', 'target_width',
                   'num_circles', 'screen_width', 'screen_height', 'helper_enabled']
 
     user_id = 0
-    circle_width = 0
+    shape_width = 0
     num_circles = 0
     helper_enabled = False
     background_distraction_enabled = False
     num_targets = 0
     screen_width = 0
     screen_height = 0
-    circle_coords = []
-    circles = []
+    shape_coords = []
+    shapes = []
     target_coords = []
-    max_repetitions = 0
-    distance_between_circles = 0
+    max_repetitions = 0                             # repetitions per condition
+    distance_between_shapes = 0
 
     def __init__(self):
         self.parse_setup(sys.argv[1])
-        self.init_circles()
-        self.init_circle_coords()
+        self.init_shapes()
+        self.init_shape_coords()
         self.timer = QtCore.QTime()
         self.mouse_moving = False
+        self.current_participant_repetitions = 1    # counts how many conditions the participant has already completed
+        self.latin_square = [[1, 2],
+                             [2, 1]]
+        self.current_latin_square_row = self.calculate_row_for_id()
+        self.current_condition_index = 0
+        self.current_condition = self.latin_square[self.current_latin_square_row][self.current_condition_index]
         self.df = pd.DataFrame(columns=self.CSV_HEADER)
 
     def parse_setup(self, filename):
@@ -66,55 +77,94 @@ class FittsLawModel:
             data = json.load(file)['experiment']
 
             self.user_id = data['userId']
-            self.circle_width = data['circleWidth']
-            self.num_circles = data['numberCircles']
+            self.shape_width = data['shapeWidth']
+            self.num_circles = data['numberShapes']
             self.helper_enabled = data['helperEnabled']
             self.background_distraction_enabled = data['backgroundDistractionEnabled']
             self.num_targets = data['numberValidTargets']
             self.screen_width = data['screenWidth']
             self.screen_height = data['screenHeight']
             self.max_repetitions = data['repetitions']
-            self.distance_between_circles = data['distanceBetweenCircles']
+            self.distance_between_shapes = data['distanceBetweenShapes']
 
-    def init_circles(self):
-        self.init_circle_coords()
-        self.init_circle_list()
+    def calculate_row_for_id(self):
+        if self.user_id <= len(self.latin_square):
+            return self.user_id - 1
 
-    def init_circle_coords(self):
-        self.circle_coords = spread(self.num_circles, self.screen_width - self.circle_width,
-                                    self.screen_height - self.circle_width, self.circle_width,
-                                    self.distance_between_circles)
+        else:
+            to_subtract = int(self.user_id / len(self.latin_square))
+            normalized_id = self.user_id - to_subtract * len(self.latin_square)
+            return normalized_id - 1
 
-    def init_circle_list(self):
-        for center in self.circle_coords:
-            self.circles.append(MyCircle(self, center, False))
-            # self.target_coords.append(center)
+    def init_shapes(self):
+        self.init_shape_coords()
+        self.init_shape_list()
+
+    def init_shape_coords(self):
+        self.shape_coords = spread(self.num_circles, self.screen_width - self.shape_width,
+                                   self.screen_height - self.shape_width, self.shape_width,
+                                   self.distance_between_shapes)
+
+    def init_shape_list(self):
+        for center in self.shape_coords:
+            self.shapes.append(MyCircle(self, center, False))
 
         for x in range(self.num_targets):
             unique_timeout = 0
-            circle = random.choice(self.circles)
-            while circle.is_target:
+            shape = random.choice(self.shapes)
+            while shape.is_target:
                 unique_timeout += 1
-                circle = random.choice(self.circles)
+                shape = random.choice(self.shapes)
                 if unique_timeout > 1000:
                     break
 
-            circle.set_is_target(True)
+            shape.set_is_target(True)
             self.target_coords\
-                .append((circle.center[0] + self.circle_width / 2, circle.center[1] + self.circle_width / 2))
+                .append((shape.center[0] + self.shape_width / 2, shape.center[1] + self.shape_width / 2))
+
+    def get_next_condition(self):
+        self.current_condition_index += 1
+        row = self.current_latin_square_row
+        index = self.current_condition_index
+
+        if row >= len(self.latin_square):
+            row = 0
+
+        if index >= len(self.latin_square[0]):
+            index = 0
+
+        self.current_condition = self.latin_square[row][index]
 
     def refresh(self):
-        self.circle_coords.clear()
+        self.shape_coords.clear()
         self.target_coords.clear()
-        self.circles.clear()
-        self.init_circles()
+        self.shapes.clear()
+        self.init_shapes()
+
+    def refresh_participant(self):
+        self.user_id += 1
+        self.current_latin_square_row = self.calculate_row_for_id()
+        self.current_condition_index = 0
+        self.current_condition = self.latin_square[self.current_latin_square_row][self.current_condition_index]
+        self.current_participant_repetitions = 1
 
     def handle_click(self, x, y):
         for coord in self.target_coords:
-            distance = math.sqrt((x - coord[0]) ** 2 + (y - coord[1]) ** 2)
+            if Condition(self.current_condition) == Condition.Circle:
+                distance = math.sqrt((x - coord[0]) ** 2 + (y - coord[1]) ** 2)
 
-            if distance <= self.circle_width / 2:
-                return True
+                if distance <= self.shape_width / 2:
+                    return True
+
+            elif Condition(self.current_condition) == Condition.Square:
+                # we adjusted the target coordinates to be at the center of the shape
+                # in case of the 'square' target we need to adjust these values back to the top-left corner
+                rect_x = coord[0] - self.shape_width / 2
+                rect_y = coord[1] - self.shape_width / 2
+
+                if rect_x < x < rect_x + self.shape_width:
+                    if rect_y < y < rect_y + self.shape_width:
+                        return True
 
         return False
 
@@ -132,11 +182,12 @@ class FittsLawModel:
         self.df = self.df.append({
             'user_id': self.user_id,
             'timestamp': datetime.now(),
+            'condition': Condition(self.current_condition).name,
             'num_clicks': click_counter,
             'time_taken_in_ms': time_taken,
             'click_x': mouse_press_event.x(),
             'click_y': mouse_press_event.y(),
-            'target_width': self.circle_width,
+            'target_width': self.shape_width,
             'num_circles': self.num_circles,
             'screen_width': self.screen_width,
             'screen_height': self.screen_height,
@@ -190,14 +241,19 @@ class FittsLawExperiment(QtWidgets.QWidget):
 
         painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
 
-        for circle in self.model.circles:
-            if circle.is_target:
+        for shape in self.model.shapes:
+            if shape.is_target:
                 painter.setBrush(Qt.QBrush(QtCore.Qt.red, QtCore.Qt.SolidPattern))
             else:
                 painter.setBrush(Qt.QBrush(QtCore.Qt.gray))
 
-            painter.drawEllipse(int(circle.x_coord), int(circle.y_coord),
-                                int(self.model.circle_width), int(self.model.circle_width))
+            if Condition(self.model.current_condition) == Condition.Circle:
+                painter.drawEllipse(int(shape.x_coord), int(shape.y_coord),
+                                    int(self.model.shape_width), int(self.model.shape_width))
+
+            elif Condition(self.model.current_condition) == Condition.Square:
+                painter.drawRect(int(shape.x_coord), int(shape.y_coord),
+                                 int(self.model.shape_width), int(self.model.shape_width))
 
     def keyPressEvent(self, ev):
         pass
@@ -230,13 +286,18 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.current_repetition += 1
 
         if self.current_repetition > self.model.max_repetitions:
-            self.model.print_log_to_stdout()
-            self.application_state = ApplicationState.FINISHED
-            self.reset_experiment()
+            if self.model.current_participant_repetitions >= len(Condition):
+                self.model.print_log_to_stdout()
+                self.application_state = ApplicationState.FINISHED
+                self.reset_experiment()
+            else:
+                self.model.current_participant_repetitions += 1
+                self.current_repetition = 1
+                self.model.get_next_condition()
 
     def reset_experiment(self):
-        self.model.user_id += 1
-        self.current_repetition = 0
+        self.current_repetition = 1
+        self.model.refresh_participant()
 
     def mouseMoveEvent(self, ev):
         if self.application_state == ApplicationState.EXPLANATION:
@@ -256,16 +317,10 @@ class FittsLawWithHelper(FittsLawExperiment):
         super().mouseMoveEvent(ev)
         distance_to_target = self.get_nearest_target(ev)
 
-        # anti-solution
-        # if distance_to_target.total_distance < self.model.circle_width + 50:
-        #     QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(ev.pos().x() - (distance_to_target.distance_x / 10),
-        #                                                         ev.pos().x() - (distance_to_target.distance_x / 10))))
-
-        if distance_to_target.total_distance < self.model.circle_width + 50:  # TODO replace "50" with config value
+        if distance_to_target.total_distance < self.model.shape_width + 50:  # TODO replace "50" with config value
             QtGui.QCursor.setPos(self.mapToGlobal(
                 QtCore.QPoint(ev.pos().x() + (distance_to_target.distance_x / 10) + 0.5,
                               ev.pos().y() + (distance_to_target.distance_y / 10) + 0.5)))
-
 
     def get_nearest_target(self, ev):
         nearest_target = None

@@ -1,14 +1,14 @@
 {
   "experiment": {
     "userId": 1,
-    "circleWidth": 40,
-    "numberCircles": 500,
-    "helperEnabled": false,
+    "shapeWidth": 40,
+    "numberShapes": 500,
+    "helperEnabled": true,
     "backgroundDistractionEnabled": false,
     "numberValidTargets": 1,
     "screenWidth": 1280,
     "screenHeight": 720,
     "repetitions": 5,
-    "distanceBetweenCircles": 50
+    "distanceBetweenShapes": 50
   }
 }
