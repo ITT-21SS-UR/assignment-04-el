@@ -1,15 +1,12 @@
-import os
 import random
 import sys
 import json
-import time
-import collections
 import math
 
 from PyQt5 import QtWidgets
 from super_spreader import spread
 from enum import Enum
-from PyQt5 import uic, Qt, QtCore, QtGui
+from PyQt5 import Qt, QtCore, QtGui
 from datetime import datetime
 import pandas as pd
 from pointing_technique import CursorHelper
@@ -21,7 +18,7 @@ LATIN_SQUARE_FULL = [[1, 3, 4, 2],
                      [3, 2, 1, 4]]
 
 LATIN_SQUARE_SINGLE = [[1, 2],
-                     [2, 1]]
+                       [2, 1]]
 
 TEST_TYPE_FULL = "full"
 TEST_TYPE_SINGLE = "single"
