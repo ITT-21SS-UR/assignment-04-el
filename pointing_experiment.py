@@ -97,7 +97,6 @@ class FittsLawModel:
             self.shape_width = data['shapeWidth']
             self.num_shapes = data['numberShapes']
             self.helper_enabled = data['helperEnabled']
-            self.background_distraction_enabled = data['backgroundDistractionEnabled']
             self.num_targets = data['numberValidTargets']
             self.screen_width = \
                 data['screenWidth'] if data['screenWidth'] >= self.MIN_SCREEN_WIDTH else self.MIN_SCREEN_WIDTH
