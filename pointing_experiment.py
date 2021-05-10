@@ -52,6 +52,8 @@ class MyShape:
 class FittsLawModel:
     CSV_HEADER = ['user_id', 'timestamp', 'condition', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y',
                   'target_width', 'num_circles', 'screen_width', 'screen_height', 'helper_enabled']
+    MIN_SCREEN_WIDTH = 850
+    MIN_SCREEN_HEIGHT = 650
 
     user_id = 0
     shape_width = 0
@@ -93,8 +95,10 @@ class FittsLawModel:
             self.helper_enabled = data['helperEnabled']
             self.background_distraction_enabled = data['backgroundDistractionEnabled']
             self.num_targets = data['numberValidTargets']
-            self.screen_width = data['screenWidth']
-            self.screen_height = data['screenHeight']
+            self.screen_width = \
+                data['screenWidth'] if data['screenWidth'] >= self.MIN_SCREEN_WIDTH else self.MIN_SCREEN_WIDTH
+            self.screen_height = \
+                data['screenHeight'] if data['screenWidth'] >= self.MIN_SCREEN_HEIGHT else self.MIN_SCREEN_HEIGHT
             self.max_repetitions = data['repetitions']
             self.distance_between_shapes = data['distanceBetweenShapes']
             self.test_type = data['testType']
@@ -121,6 +125,7 @@ class FittsLawModel:
         self.shape_coords = spread(self.num_circles, self.screen_width - self.shape_width,
                                    self.screen_height - self.shape_width, self.shape_width,
                                    self.distance_between_shapes)
+        self.remove_shapes_from_text_area()
 
     def init_shape_list(self):
         """
@@ -237,6 +242,15 @@ class FittsLawModel:
     def print_log_to_stdout(self):
         self.df.to_csv(sys.stdout, index=False)
 
+    def remove_shapes_from_text_area(self):
+        """
+        The upper area is reserved only for the ui text, no shapes should be drawn there
+        Removes all elements that have a y-coordinate < 50 from the list of shape coordinates
+        """
+        for shape in self.shape_coords[:]:
+            if shape[1] <= 50:
+                self.shape_coords.remove(shape)
+
 
 class FittsLawExperiment(QtWidgets.QWidget):
     DEFAULT_STYLE = "background-color: gray"
@@ -248,6 +262,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.model = model
         self.circles_drawn = False
         self.start_pos = (int(self.model.screen_width / 2), int(self.model.screen_height / 2))
+        self.progress_bar = Qt.QProgressBar(self)
         self.init_ui()
         self.current_click_counter = 0
         self.current_repetition = 1
@@ -258,6 +273,12 @@ class FittsLawExperiment(QtWidgets.QWidget):
         self.setStyleSheet(self.DEFAULT_STYLE)
         self.resize(self.model.screen_width, self.model.screen_height)
         self.setMouseTracking(True)
+        progress_bar_area = Qt.QRect(self.model.screen_width / 2, 5, self.model.screen_width / 2 - 50, 25)
+        self.progress_bar.setGeometry(progress_bar_area)
+        self.progress_bar.setMaximum(self.model.max_repetitions * len(self.model.latin_square))
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setFormat('Progress: %v of %m (%p %)')
         self.show()
 
     def paintEvent(self, event):
@@ -267,7 +288,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
             painter.setPen(QtCore.Qt.black)
             painter.setFont(Qt.QFont('Decorative', 36))
             painter.drawText(event.rect(), QtCore.Qt.AlignCenter,
-                             "Get ready to move your mouse\nand click the red circle!\n\n\n"
+                             "Get ready to move your mouse\nand click the red shape!\n\n\n"
                              "Left Click when you are ready to start!")
             return
 
@@ -279,8 +300,9 @@ class FittsLawExperiment(QtWidgets.QWidget):
                              "Click anywhere in the window to\ncontinue with the next participant.")
             return
 
-        painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
+        self.draw_task_hint(painter)
 
+        painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
         for shape in self.model.shapes:
             if shape.is_target:  # targets should be filled with a red color
                 painter.setBrush(Qt.QBrush(QtCore.Qt.red, QtCore.Qt.SolidPattern))
@@ -298,6 +320,13 @@ class FittsLawExperiment(QtWidgets.QWidget):
                 painter.drawRect(int(shape.x_coord), int(shape.y_coord),
                                  int(self.model.shape_width), int(self.model.shape_width))
 
+    def draw_task_hint(self, painter):
+        painter.setPen(QtCore.Qt.black)
+        painter.setFont(Qt.QFont('Decorative', 24))
+        textarea = QtCore.QRect(5, 5, self.model.screen_width, 50)
+        painter.drawText(textarea, QtCore.Qt.AlignLeft,
+                         "Click on the red shape!")
+
     def keyPressEvent(self, ev):
         if ev.key() == QtCore.Qt.Key_H and ev.modifiers() & QtCore.Qt.ControlModifier:
             self.model.helper_enabled = not self.model.helper_enabled
@@ -305,6 +334,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
     def mousePressEvent(self, ev):
         if self.application_state == ApplicationState.EXPLANATION:
             self.application_state = ApplicationState.EXPERIMENT
+            self.progress_bar.setVisible(True)
             QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(self.start_pos[0], self.start_pos[1])))
             self.repaint()
             return
@@ -322,26 +352,30 @@ class FittsLawExperiment(QtWidgets.QWidget):
 
     def handle_hit(self, mouse_press_event):
         self.model.refresh()
-        self.update()
         QtGui.QCursor.setPos(self.mapToGlobal(QtCore.QPoint(self.start_pos[0], self.start_pos[1])))
         time_taken = self.model.stop_timer()
         self.model.add_log_row(self.current_click_counter, time_taken, mouse_press_event)
         self.current_click_counter = 0
         self.current_repetition += 1
+        self.progress_bar.setValue(self.progress_bar.value() + 1)
 
         # trigger the next condition, or finish the experiment if all conditions are completed
         if self.current_repetition > self.model.max_repetitions:
             if self.model.current_participant_repetitions >= len(self.model.latin_square):
                 self.application_state = ApplicationState.FINISHED
+                self.progress_bar.setVisible(False)
                 self.reset_experiment()
             else:
                 self.model.current_participant_repetitions += 1
                 self.current_repetition = 1
                 self.model.get_next_condition()
 
+        self.repaint()
+
     def reset_experiment(self):
         self.current_repetition = 1
         self.model.refresh_participant()
+        self.progress_bar.setValue(0)
 
     def mouseMoveEvent(self, ev):
         if self.application_state == ApplicationState.EXPLANATION or \
