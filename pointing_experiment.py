@@ -309,7 +309,7 @@ class FittsLawExperiment(QtWidgets.QWidget):
 
         self.draw_task_hint(painter)
         self.draw_shapes(painter)
-        
+
     def draw_shapes(self, painter):
         painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
         for shape in self.model.shapes:
