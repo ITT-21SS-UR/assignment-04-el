@@ -1,0 +1,29 @@
+{
+  "_comments": {
+    "userId": "The id of the user",
+    "shapeWidth": "The width of the shapes in pixels",
+    "numberShapes": "The maximum number of shapes on the screen. Note that not all shapes may fit, depending on shape and screen size. Insert a very high number to always fill the entire screen",
+    "helperEnabled": "true if the pointing technique is enabled, false if not",
+    "numberValidTargets": "maximum number of valid targets",
+    "screenWidth": "width of the widget in pixels. Minimum width is 850 pixels, lower values will be overridden",
+    "screenHeight": "height of the widget in pixels. Minimum height is 650 pixels, lower values will be overridden",
+    "repetitions": "number of repetitions **per condition**",
+    "distanceBetweenShapes": "Distance between the shapes in pixels. Recommended to keep this higher than shape width, to avoid overlap",
+    "testType": "'single' for a test where the helper is either disabled or enabled, 'full' for an experiment where each condition is tested twice, one time with helper enabled, and another time with helper disabled",
+    "helperGravityDistance": "the pointing helper will drag the mouse towards the target once the distance between cursor and target falls under this threshold (in pixels)"
+  },
+
+  "experiment": {
+    "userId": 1,
+    "shapeWidth": 40,
+    "numberShapes": 500,
+    "helperEnabled": true,
+    "numberValidTargets": 1,
+    "screenWidth": 1280,
+    "screenHeight": 720,
+    "repetitions": 3,
+    "distanceBetweenShapes": 50,
+    "testType": "single",
+    "helperGravityDistance": 30
+  }
+}
