@@ -308,7 +308,9 @@ class FittsLawExperiment(QtWidgets.QWidget):
             return
 
         self.draw_task_hint(painter)
-
+        self.draw_shapes(painter)
+        
+    def draw_shapes(self, painter):
         painter.setPen(Qt.QPen(QtCore.Qt.black, 2, QtCore.Qt.SolidLine))
         for shape in self.model.shapes:
             if shape.is_target:  # targets should be filled with a red color
