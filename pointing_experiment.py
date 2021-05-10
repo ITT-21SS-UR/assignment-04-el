@@ -51,7 +51,7 @@ class MyShape:
 
 class FittsLawModel:
     CSV_HEADER = ['user_id', 'timestamp', 'condition', 'num_clicks', 'time_taken_in_ms', 'click_x', 'click_y',
-                  'target_width', 'num_circles', 'screen_width', 'screen_height', 'helper_enabled']
+                  'target_width', 'num_shapes', 'screen_width', 'screen_height', 'helper_enabled']
     MIN_SCREEN_WIDTH = 850
     MIN_SCREEN_HEIGHT = 650
 
@@ -237,7 +237,10 @@ class FittsLawModel:
             'click_x': mouse_press_event.x(),
             'click_y': mouse_press_event.y(),
             'target_width': self.shape_width,
-            'num_circles': self.num_shapes,
+
+            # num_shapes has a slight variance due to shape spreading and shapes being culled from the ui area
+            # this should however not be very noticeable
+            'num_shapes': len(self.shape_coords),
             'screen_width': self.screen_width,
             'screen_height': self.screen_height,
             'helper_enabled': self.helper_enabled
