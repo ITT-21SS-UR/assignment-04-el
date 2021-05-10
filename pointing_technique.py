@@ -1,4 +1,5 @@
 import collections
+import math
 from PyQt5 import QtCore
 
 DistanceToTarget = collections.namedtuple('DistanceToTarget', ['target', 'distance_x', 'distance_y', 'total_distance'])
@@ -21,6 +22,9 @@ class CursorHelper:
     gets enabled
     """
 
+    # factor by which the magnetic pull should be smoothed. Higher number = smoother and slower cursor adjustment
+    MAGNETIC_PULL_SMOOTHING = 10
+
     def __init__(self, target_coords, shape_width, gravity_distance):
         super().__init__()
         self.target_coords = target_coords
@@ -31,8 +35,9 @@ class CursorHelper:
         distance_to_target = self.get_nearest_target_distance(mouse_event)
 
         if distance_to_target.total_distance < self.shape_width / 2 + self.gravity_distance:
-            return (QtCore.QPoint(mouse_event.pos().x() + (distance_to_target.distance_x / 10),
-                    mouse_event.pos().y() + (distance_to_target.distance_y / 10)))
+            return (QtCore.QPoint(mouse_event.pos().x()
+                    + (distance_to_target.distance_x / self.MAGNETIC_PULL_SMOOTHING), mouse_event.pos().y()
+                    + (distance_to_target.distance_y / self.MAGNETIC_PULL_SMOOTHING)))
 
         else:
             return None
@@ -45,7 +50,7 @@ class CursorHelper:
         nearest_target = None
         nearest_target_distance = 0
         for coord in self.target_coords:
-            distance = abs((coord[0] - ev.x()) + (coord[1] - ev.y()))
+            distance = math.hypot(ev.x() - coord[0], ev.y() - coord[1])
 
             if nearest_target is None:
                 nearest_target = coord
@@ -55,4 +60,5 @@ class CursorHelper:
                     nearest_target = coord
                     nearest_target_distance = distance
 
-            return DistanceToTarget(nearest_target, coord[0] - ev.x(), coord[1] - ev.y(), nearest_target_distance)
+        return DistanceToTarget(nearest_target, nearest_target[0] - ev.x(), nearest_target[1] - ev.y(),
+                                nearest_target_distance)

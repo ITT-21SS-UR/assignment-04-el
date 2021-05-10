@@ -55,21 +55,20 @@ class FittsLawModel:
     MIN_SCREEN_WIDTH = 850
     MIN_SCREEN_HEIGHT = 650
 
-    user_id = 0
-    shape_width = 0
-    num_circles = 0
-    helper_enabled = False
-    background_distraction_enabled = False
-    num_targets = 0
-    screen_width = 0
-    screen_height = 0
-    shape_coords = []
-    shapes = []
-    target_coords = []
+    user_id = 0                                     # current participant id
+    shape_width = 0                                 # width of the shapes on screen
+    num_shapes = 0                                  # maximum number of shapes on screen
+    helper_enabled = False                          # toggle for the pointing helper
+    num_targets = 0                                 # number of valid clickable targets
+    screen_width = 0                                # width of the widget
+    screen_height = 0                               # height of the widget
+    shape_coords = []                               # list of tuples containing the x and y coordinates of all shapes
+    shapes = []                                     # list containing the shape objects (see class 'MyShape')
+    target_coords = []                              # list of tuples containing the x and y coordinates of target shapes
     max_repetitions = 0                             # repetitions per condition
-    distance_between_shapes = 0
-    test_type = ""
-    helper_gravity_distance = 0
+    distance_between_shapes = 0                     # minimum distance in pixels between the shapes
+    test_type = ""                                  # either "full" or "single", determines the conditions
+    helper_gravity_distance = 0                     # distance threshold for magnetic pointer helper activation
 
     def __init__(self):
         self.helper = ()
@@ -87,12 +86,16 @@ class FittsLawModel:
         self.df = pd.DataFrame(columns=self.CSV_HEADER)
 
     def parse_setup(self, filename):
+        """
+        Read config from config.json
+        See config.json for comments on the settings
+        """
         with open(filename) as file:
             data = json.load(file)['experiment']
 
             self.user_id = data['userId']
             self.shape_width = data['shapeWidth']
-            self.num_circles = data['numberShapes']
+            self.num_shapes = data['numberShapes']
             self.helper_enabled = data['helperEnabled']
             self.background_distraction_enabled = data['backgroundDistractionEnabled']
             self.num_targets = data['numberValidTargets']
@@ -124,7 +127,7 @@ class FittsLawModel:
         self.helper = CursorHelper(self.target_coords, self.shape_width, self.helper_gravity_distance)
 
     def init_shape_coords(self):
-        self.shape_coords = spread(self.num_circles, self.screen_width - self.shape_width,
+        self.shape_coords = spread(self.num_shapes, self.screen_width - self.shape_width,
                                    self.screen_height - self.shape_width, self.shape_width,
                                    self.distance_between_shapes)
         self.remove_shapes_from_text_area()
@@ -235,7 +238,7 @@ class FittsLawModel:
             'click_x': mouse_press_event.x(),
             'click_y': mouse_press_event.y(),
             'target_width': self.shape_width,
-            'num_circles': self.num_circles,
+            'num_circles': self.num_shapes,
             'screen_width': self.screen_width,
             'screen_height': self.screen_height,
             'helper_enabled': self.helper_enabled
