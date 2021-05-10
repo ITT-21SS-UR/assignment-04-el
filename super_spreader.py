@@ -1,7 +1,7 @@
 """
 This code is taken from: https://scipython.com/blog/poisson-disc-sampling-in-python/
 
-It distributes the circles evenly across the screen without overlaps using black magic
+It distributes the circles evenly across the screen without overlaps using poisson disc sampling
 
 We slightly adjusted the original code so it works for our needs and so that it returns a list of coordinates
 instead of printing a plot.
