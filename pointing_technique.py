@@ -5,16 +5,32 @@ DistanceToTarget = collections.namedtuple('DistanceToTarget', ['target', 'distan
 
 
 class CursorHelper:
+    """
+    Helps the user click the target by modifying the position of the mouse cursor.
+    This class takes the current cursor position and calculates the coordinates of the nearest target.
+    Once the cursor is within a certain distance of that target, the cursor position will be set closer to the position
+    of the target. In order to not "teleport" the cursor instantly, only a fraction of the distance is adjusted
+    per cycle. This leads to a smooth yet quick magnetic pull towards the target coordinates.
+    Once on the target, the cursor can only be moved away again by intentional quick movements. This further prevents
+    accidentally "overshooting" the target location.
 
-    def __init__(self, target_coords, shape_width):
+    :param target_coords: A list of tuples containing the x and y coordinates of valid targets
+    :param shape_width: The width of the shapes on screen. This is used as a part of the distance calculation between
+    cursor and target center
+    :param gravity_distance: when the distance between cursor and target is below this value, the magnetic pull effect
+    gets enabled
+    """
+
+    def __init__(self, target_coords, shape_width, gravity_distance):
         super().__init__()
         self.target_coords = target_coords
         self.shape_width = shape_width
+        self.gravity_distance = gravity_distance
 
     def filter(self, mouse_event):
         distance_to_target = self.get_nearest_target_distance(mouse_event)
 
-        if distance_to_target.total_distance < self.shape_width + 50:  # TODO replace "50" with config value
+        if distance_to_target.total_distance < self.shape_width / 2 + self.gravity_distance:
             return (QtCore.QPoint(mouse_event.pos().x() + (distance_to_target.distance_x / 10),
                     mouse_event.pos().y() + (distance_to_target.distance_y / 10)))
 

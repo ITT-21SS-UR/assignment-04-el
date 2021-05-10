@@ -69,6 +69,7 @@ class FittsLawModel:
     max_repetitions = 0                             # repetitions per condition
     distance_between_shapes = 0
     test_type = ""
+    helper_gravity_distance = 0
 
     def __init__(self):
         self.helper = ()
@@ -102,6 +103,7 @@ class FittsLawModel:
             self.max_repetitions = data['repetitions']
             self.distance_between_shapes = data['distanceBetweenShapes']
             self.test_type = data['testType']
+            self.helper_gravity_distance = data['helperGravityDistance']
 
     def calculate_row_for_id(self):
         """
@@ -119,7 +121,7 @@ class FittsLawModel:
     def init_shapes(self):
         self.init_shape_coords()
         self.init_shape_list()
-        self.helper = CursorHelper(self.target_coords, self.shape_width)
+        self.helper = CursorHelper(self.target_coords, self.shape_width, self.helper_gravity_distance)
 
     def init_shape_coords(self):
         self.shape_coords = spread(self.num_circles, self.screen_width - self.shape_width,
